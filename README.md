@@ -18,6 +18,6 @@ make -j4
 ```
 
 #### Notes
-- This is very much a work in progess...
+- This is very much a work in progess
 - Tested on a Raspberry Pi (64-bit OS) using a DFM-25G445-ML GigE camera (from The Imaging Source)
 - Please contact me at max.vandaalen@bitparallel.com if you have any questions
