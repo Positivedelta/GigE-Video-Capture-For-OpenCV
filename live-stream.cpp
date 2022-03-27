@@ -10,7 +10,15 @@
 
 #include "gige-video-capture.hpp"
 
-int32_t main(int32_t argc, char *argv[])
+//
+// note, as GigE cameras have high network utilisation it may be necessary to increase the network receiver buffer size, use:
+//   sudo sysctl -w net.core.rmem_max=10485760
+//   sudo sysctl -w net.core.rmem_default=10485760
+//
+//   see, https://www.flir.co.uk/support-center/iis/machine-vision/knowledge-base/lost-ethernet-data-packets-on-linux-systems/
+//
+
+int32_t main(int32_t argc, char* argv[])
 {
     // set the gstreamer default logging level, remove for no logging but always init gstreamer
     // for further details, see https://gstreamer.freedesktop.org/documentation/tutorials/basic/debugging-tools.html
@@ -25,8 +33,9 @@ int32_t main(int32_t argc, char *argv[])
         //          (b) video/x-raw, GRAY8 (CV_8U, 1), 30/1, 20/1, 15/1, 15/2, 15/4
         //       2, do not use "tcambin" as this includes a bayer conversion and will filter out the frame meta data (i.e. the camera timestamp and framerate)
         //
-        const auto pipeline = "tcamsrc serial=30610380 ! video/x-bayer,format=gbrg,width=1280,height=960,framerate=30/1 ! tcamautoexposure ! tcamwhitebalance ! appsink";
+//      const auto pipeline = "tcamsrc serial=30610380 ! video/x-raw,format=GRAY8,width=1280,height=960,framerate=15/1 ! appsink";
 //      const auto pipeline = "tcamsrc serial=30610380 ! video/x-raw,format=GRAY8,width=1280,height=960,framerate=15/1 ! tcamautoexposure ! appsink";
+        const auto pipeline = "tcamsrc serial=30610380 ! video/x-bayer,format=gbrg,width=1280,height=960,framerate=15/1 ! tcamautoexposure ! tcamwhitebalance ! appsink";
         auto capture = GigEVideoCapture(pipeline, CV_8U, 1);
 
         // displaying for reference only, useful when setting pipeline properties
@@ -50,24 +59,30 @@ int32_t main(int32_t argc, char *argv[])
             //       2, the default state of "Gain Auto" is  true
             //
             capture.setBooleanProperty("tcamautoexposure0", "Exposure Auto", true);
-//          capture.setIntegerProperty("tcamautoexposure0", "Exposure", 100);
-            capture.setIntegerProperty("tcamautoexposure0", "Brightness Reference", 50);
+            capture.setIntegerProperty("tcamautoexposure0", "Brightness Reference", 80);
             capture.setBooleanProperty("tcamautoexposure0", "Gain Auto", true);
-//          capture.setDoubleProperty("tcamautoexposure0", "Gain", 2.97);
+//          capture.setIntegerProperty("tcamsrc0", "Exposure", 800);
+//          capture.setDoubleProperty("tcamsrc0", "Gain", 2.97);
 
             cv::namedWindow("Live Frame", 1);
+            uint64_t previousTimestamp = 0;
             while (true)
             {
+                // FIXME! perhaps refactor this to "bool grab(cv::Mat& frame)" as it may speed things up
+                //
                 cv::Mat frame = capture.grab();
                 cv::cvtColor(frame, frame, cv::COLOR_BayerGBRG2BGR);
 //              cv::cvtColor(frame, frame, cv::COLOR_BayerGBRG2GRAY);
 //              cv::Canny(frame, frame, 80, 255);
                 cv:imshow("Live Frame", frame);
 
-                std::cout << "Timestamp: " << capture.getCameraTimestamp() << "\n";
-                std::cout << "Framerate: " << capture.getCameraFrameRate() << "\n";
+                const uint64_t timestamp = capture.getCameraTimestamp();
+                std::cout << "Timestamp: " << ((timestamp - previousTimestamp) / 1000000.0) << "\n";
+                previousTimestamp = timestamp;
 
-                const int32_t ch = cv::waitKey(1) & 0xff;
+                // note, imshow() needs ~5ms to respond
+                //
+                const int32_t ch = cv::waitKey(5) & 0xff;
                 if (ch == 27) break;
             }
 
