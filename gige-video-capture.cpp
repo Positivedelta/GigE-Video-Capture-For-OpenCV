@@ -12,11 +12,12 @@
 #include "gige-video-capture.hpp"
 
 //
-// notes 1, as GigE cameras have high network utilisation it may be necessary to increase the network receiver buffer size, use:
-//          sudo sysctl -w net.core.rmem_max=10485760
-//          sudo sysctl -w net.core.rmem_default=10485760
+// note, as GigE cameras have high network utilisation it may be necessary to increase the network receiver buffer size, use:
+//       sudo sysctl -w net.core.rmem_max=10485760
+//       sudo sysctl -w net.core.rmem_default=10485760
 //
-//          see https://www.flir.co.uk/support-center/iis/machine-vision/knowledge-base/lost-ethernet-data-packets-on-linux-systems/
+//       for further details see:
+//       https://www.flir.co.uk/support-center/iis/machine-vision/knowledge-base/lost-ethernet-data-packets-on-linux-systems/
 //
 
 GigEVideoCapture::GigEVideoCapture(const std::string_view pipeline, const int32_t imageBaseType, const int32_t imageChannels)
