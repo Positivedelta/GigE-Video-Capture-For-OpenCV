@@ -13,11 +13,10 @@
 
 //
 // note, as GigE cameras have high network utilisation it may be necessary to increase the network receiver buffer size, use:
-//       sudo sysctl -w net.core.rmem_max=10485760
-//       sudo sysctl -w net.core.rmem_default=10485760
+//   sudo sysctl -w net.core.rmem_max=10485760
+//   sudo sysctl -w net.core.rmem_default=10485760
 //
-//       for further details see:
-//       https://www.flir.co.uk/support-center/iis/machine-vision/knowledge-base/lost-ethernet-data-packets-on-linux-systems/
+//   see, https://www.flir.co.uk/support-center/iis/machine-vision/knowledge-base/lost-ethernet-data-packets-on-linux-systems/
 //
 
 GigEVideoCapture::GigEVideoCapture(const std::string_view pipeline, const int32_t imageBaseType, const int32_t imageChannels)
@@ -95,10 +94,11 @@ GstFlowReturn GigEVideoCapture::handler(GstElement* sink, gpointer userData)
 {
     // this handler must be implemented as static method (or a top level function) and to allow it to emulate an instance method
     // the userData parameter is used to provide the calling this reference, see g_signal_connect() in the constructor
+    // note, preferring the use of a reference, i.e. could just use a pointer (the compiler won't care either way...)
     //
-    GigEVideoCapture* instance = static_cast<GigEVideoCapture*>(userData);
+    GigEVideoCapture& instance = *static_cast<GigEVideoCapture*>(userData);
 
-    if (!instance->doGrab) return GST_FLOW_OK;
+    if (!instance.doGrab) return GST_FLOW_OK;
     GstSample* sample = gst_app_sink_pull_sample(GST_APP_SINK(sink));
 
 //  GstSample* sample = nullptr;
@@ -121,8 +121,8 @@ GstFlowReturn GigEVideoCapture::handler(GstElement* sink, gpointer userData)
 
             // note, the pipeline is likely to be configured to generate a bayer GBRG 1 channel image
             //
-            instance->grabbedFrame.create(videoInfo->height, videoInfo->width, instance->type);
-            memcpy(instance->grabbedFrame.data, info.data, videoInfo->width * videoInfo->height * instance->channels);
+            instance.grabbedFrame.create(videoInfo->height, videoInfo->width, instance.type);
+            memcpy(instance.grabbedFrame.data, info.data, videoInfo->width * videoInfo->height * instance.channels);
 
             // grab the required frame meta data
             //
@@ -130,16 +130,16 @@ GstFlowReturn GigEVideoCapture::handler(GstElement* sink, gpointer userData)
             if (gstMeta)
             {
                 GstStructure* metaData = ((TcamStatisticsMeta*)gstMeta)->structure;
-                gst_structure_get_uint64(metaData, "camera_time_ns", &(instance->cameraTimestamp));
-                gst_structure_get_double(metaData, "framerate", &(instance->cameraFrameRate));
+                gst_structure_get_uint64(metaData, "camera_time_ns", &(instance.cameraTimestamp));
+                gst_structure_get_double(metaData, "framerate", &(instance.cameraFrameRate));
             }
 
             // minimise the required lock scope
             //
             {
-                std::scoped_lock<std::mutex> lock(instance->lockMutex);
-                instance->doGrab = false;
-                instance->condition.notify_one();
+                std::scoped_lock<std::mutex> lock(instance.lockMutex);
+                instance.doGrab = false;
+                instance.condition.notify_one();
             }
 
             // tidy up...
