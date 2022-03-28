@@ -63,6 +63,12 @@ GigEVideoCapture::GigEVideoCapture(const std::string_view pipeline, const int32_
                 done = true;
                 break;
         }
+
+        //
+        // FIXME! 1, extract the width and height from the pipeline and create the grabbedFrame appropriately
+        //        2, remove the the Mat::create() from the handler()
+        //        3, type and channels then no longer need to be properties
+        //
     }
 
     gst_iterator_free(pipelineIterator);
@@ -97,12 +103,16 @@ GstFlowReturn GigEVideoCapture::handler(GstElement* sink, gpointer userData)
     // note, preferring the use of a reference, i.e. could just use a pointer (the compiler won't care either way...)
     //
     GigEVideoCapture& instance = *static_cast<GigEVideoCapture*>(userData);
-
-    if (!instance.doGrab) return GST_FLOW_OK;
     GstSample* sample = gst_app_sink_pull_sample(GST_APP_SINK(sink));
 
-//  GstSample* sample = nullptr;
-//  g_signal_emit_by_name(sink, "pull-sample", &sample, nullptr);
+    if (!instance.doGrab)
+    {
+        // required to correctly discard the sample
+        //
+        if (sample) gst_sample_unref(sample);
+        return GST_FLOW_OK;
+    }
+
     if (sample)
     {
         GstBuffer* buffer = gst_sample_get_buffer(sample);
@@ -116,10 +126,16 @@ GstFlowReturn GigEVideoCapture::handler(GstElement* sink, gpointer userData)
                 // unable to parse video info, this should not happen...
                 //
                 g_warning("Failed to parse video info");
+                gst_sample_unref(sample);
+                gst_buffer_unmap(buffer, &info);
+                gst_video_info_free(videoInfo);
+
                 return GST_FLOW_ERROR;
             }
 
-            // note, the pipeline is likely to be configured to generate a bayer GBRG 1 channel image
+            // notes 1, the pipeline is likely to be configured to generate a bayer GBRG 1 channel image
+            //       2, cv::Mat::create() will return immediately if cv::Size() and type match the existing values
+            //          otherwise it will allocate and initialise, this will happen once during the 1st call to GigEVideoCapture::handler()
             //
             instance.grabbedFrame.create(videoInfo->height, videoInfo->width, instance.type);
             memcpy(instance.grabbedFrame.data, info.data, videoInfo->width * videoInfo->height * instance.channels);

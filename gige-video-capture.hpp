@@ -22,12 +22,12 @@ class GigEVideoCapture
         std::unordered_map<std::string, GstElement*> pipelineMap;
 
         int32_t type, channels;
-        std::mutex lockMutex;
-        std::condition_variable condition;
-        bool doGrab = false;
         cv::Mat grabbedFrame = cv::Mat();
         uint64_t cameraTimestamp = 0;
         double cameraFrameRate = 0.0;
+        bool doGrab = false;
+        std::mutex lockMutex;
+        std::condition_variable condition;
 
     public:
         GigEVideoCapture(const std::string_view pipeline, const int32_t imageBaseType, const int32_t imageChannels);
@@ -48,7 +48,6 @@ class GigEVideoCapture
 
     private:
         bool waitForStateChange(GstElement* gstPipeline);
-
         static GstFlowReturn handler(GstElement* sink, gpointer userData);
 };
 

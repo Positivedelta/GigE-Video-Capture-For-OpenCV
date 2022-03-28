@@ -68,7 +68,7 @@ int32_t main(int32_t argc, char* argv[])
             uint64_t previousTimestamp = 0;
             while (true)
             {
-                // FIXME! perhaps refactor this to "bool grab(cv::Mat& frame)" as it may speed things up
+                // note, the cv::Mat copy constructor does not copy the data, but does bump a reference count on the original allocation
                 //
                 cv::Mat frame = capture.grab();
                 cv::cvtColor(frame, frame, cv::COLOR_BayerGBRG2BGR);
