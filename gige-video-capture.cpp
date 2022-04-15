@@ -126,9 +126,17 @@ GstFlowReturn GigEVideoCapture::handler(GstElement* sink, gpointer userData)
                 // unable to parse video info, this should not happen...
                 //
                 g_warning("Failed to parse video info");
-                gst_sample_unref(sample);
                 gst_buffer_unmap(buffer, &info);
                 gst_video_info_free(videoInfo);
+                gst_sample_unref(sample);
+
+                // unblock the grab() method
+                // let the user know, as they get back the previous image grab
+                //
+                std::scoped_lock<std::mutex> lock(instance.lockMutex);
+                instance.doGrab = false;
+                instance.doGrabSuccess = false;
+                instance.condition.notify_one();
 
                 return GST_FLOW_ERROR;
             }
@@ -155,6 +163,7 @@ GstFlowReturn GigEVideoCapture::handler(GstElement* sink, gpointer userData)
             {
                 std::scoped_lock<std::mutex> lock(instance.lockMutex);
                 instance.doGrab = false;
+                instance.doGrabSuccess = true;
                 instance.condition.notify_one();
             }
 
@@ -162,15 +171,38 @@ GstFlowReturn GigEVideoCapture::handler(GstElement* sink, gpointer userData)
             //
             gst_buffer_unmap(buffer, &info);
             gst_video_info_free(videoInfo);
+            gst_sample_unref(sample);
+
+            return GST_FLOW_OK;
         }
 
         gst_sample_unref(sample);
+
+        // unblock the grab() method
+        // let the user know, as they get back the previous image grab
+        //
+        std::scoped_lock<std::mutex> lock(instance.lockMutex);
+        instance.doGrab = false;
+        instance.doGrabSuccess = false;
+        instance.condition.notify_one();
+    }
+    else
+    {
+        // unblock the grab() method
+        // let the user know, as they get back the previous image grab
+        //
+        std::scoped_lock<std::mutex> lock(instance.lockMutex);
+        instance.doGrab = false;
+        instance.doGrabSuccess = false;
+        instance.condition.notify_one();
     }
 
-    return GST_FLOW_OK;
+    // should this return GST_FLOW_OK, not sure...
+    //
+    return GST_FLOW_ERROR;
 }
 
-cv::Mat GigEVideoCapture::grab()
+bool GigEVideoCapture::grab(cv::Mat& frame)
 {
     {
         std::unique_lock<std::mutex> lock(lockMutex);
@@ -178,7 +210,8 @@ cv::Mat GigEVideoCapture::grab()
         while (doGrab) condition.wait(lock);
     }
 
-    return grabbedFrame;
+    frame = grabbedFrame;
+    return doGrabSuccess;
 }
 
 uint64_t GigEVideoCapture::getCameraTimestamp() const
@@ -283,6 +316,34 @@ bool GigEVideoCapture::setDoubleProperty(const std::string& component, const std
         if (!success)
         {
             auto message = "Error setting double property: " + name + " = " + std::to_string(value) + ", for component: " + component;
+            g_error(message.c_str());
+        }
+
+        g_value_unset(&setValue);
+    }
+    catch (const std::out_of_range& exception)
+    {
+        auto message = "Pipeline component key \"" + component + "\" does not exist";
+        g_error(message.c_str());
+    }
+
+    return success;
+}
+
+bool GigEVideoCapture::setStringProperty(const std::string& component, const std::string& name, const std::string& value)
+{
+    bool success = false;
+    try
+    {
+        GstElement* element = pipelineMap.at(component);
+
+        GValue setValue = G_VALUE_INIT;
+        g_value_init(&setValue, G_TYPE_STRING);
+        g_value_set_string(&setValue, value.c_str());
+        success = tcam_prop_set_tcam_property(TCAM_PROP(element), name.c_str(), &setValue);
+        if (!success)
+        {
+            auto message = "Error setting string property: " + name + " = " + value + ", for component: " + component;
             g_error(message.c_str());
         }
 

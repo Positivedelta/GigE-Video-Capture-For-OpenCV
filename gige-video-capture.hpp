@@ -26,6 +26,7 @@ class GigEVideoCapture
         uint64_t cameraTimestamp = 0;
         double cameraFrameRate = 0.0;
         bool doGrab = false;
+        bool doGrabSuccess = false;
         std::mutex lockMutex;
         std::condition_variable condition;
 
@@ -33,7 +34,7 @@ class GigEVideoCapture
         GigEVideoCapture(const std::string_view pipeline, const int32_t imageBaseType, const int32_t imageChannels);
 
         bool start();
-        cv::Mat grab();
+        bool grab(cv::Mat& frame);
         uint64_t getCameraTimestamp() const;
         double getCameraFrameRate() const;
         bool stop();
@@ -41,6 +42,7 @@ class GigEVideoCapture
         bool setBooleanProperty(const std::string& component, const std::string& name, const bool value);
         bool setIntegerProperty(const std::string& component, const std::string& name, const int32_t value);
         bool setDoubleProperty(const std::string& component, const std::string& name, const double value);
+        bool setStringProperty(const std::string& component, const std::string& name, const std::string& value);
 
         std::vector<std::string> getPipelineComponentNames() const;
 
